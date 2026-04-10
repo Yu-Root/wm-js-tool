@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量图片去水印工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border-color: #30363d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent-primary: #58a6ff;
+            --accent-secondary: #238636;
+            --accent-danger: #f85149;
+            --accent-warning: #d29922;
+            --shadow-glow: 0 0 20px rgba(88, 166, 255, 0.3);
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, #0a0e14 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(35, 134, 54, 0.08) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            padding: 30px 0;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            text-shadow: var(--shadow-glow);
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            min-height: 600px;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .panel:hover {
+            border-color: var(--accent-primary);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .panel-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 2px;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 30px 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--bg-tertiary);
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: var(--accent-primary);
+            background: rgba(88, 166, 255, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .upload-text strong {
+            color: var(--accent-primary);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .file-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .file-list::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+        }
+
+        .file-list::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .file-item:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .file-item.active {
+            border-color: var(--accent-primary);
+            background: rgba(88, 166, 255, 0.15);
+        }
+
+        .file-item-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 10px;
+        }
+
+        .file-item-remove {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--accent-danger);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: transform 0.2s;
+        }
+
+        .file-item-remove:hover {
+            transform: scale(1.1);
+        }
+
+        .file-stats {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), #3d7fc7);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(88, 166, 255, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--accent-secondary), #2ea043);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(35, 134, 54, 0.4);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, var(--accent-warning), #e3b341);
+            color: #0d1117;
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(210, 153, 34, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--bg-tertiary);
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(88, 166, 255, 0.5);
+        }
+
+        .slider-value {
+            min-width: 40px;
+            text-align: center;
+            font-weight: 600;
+            color: var(--accent-primary);
+        }
+
+        .canvas-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .canvas-wrapper {
+            width: 100%;
+            height: 550px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: 
+                linear-gradient(45deg, var(--bg-tertiary) 25%, transparent 25%),
+                linear-gradient(-45deg, var(--bg-tertiary) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, var(--bg-tertiary) 75%),
+                linear-gradient(-45deg, transparent 75%, var(--bg-tertiary) 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: var(--bg-primary);
+            border-radius: 8px;
+            position: relative;
+            overflow: auto;
+        }
+
+        .image-canvas {
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .selection-box {
+            position: absolute;
+            border: 2px solid var(--accent-primary);
+            background: rgba(88, 166, 255, 0.1);
+            cursor: move;
+            box-shadow: 0 0 10px rgba(88, 166, 255, 0.3);
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: var(--accent-primary);
+            border-radius: 2px;
+        }
+
+        .resize-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+        .resize-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+        .resize-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+        .resize-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .toolbar-left,
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .current-image-name {
+            font-weight: 600;
+            color: var(--accent-primary);
+        }
+
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .zoom-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .zoom-btn:hover {
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .zoom-level {
+            min-width: 50px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .hint-box {
+            margin-top: 15px;
+            padding: 12px;
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 3px solid var(--accent-primary);
+            border-radius: 0 6px 6px 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .hint-box strong {
+            color: var(--accent-primary);
+        }
+
+        .processing-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(13, 17, 23, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .processing-text {
+            font-size: 1.1rem;
+            color: var(--accent-primary);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            .canvas-wrapper {
+                height: 450px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🖼️ 批量图片去水印工具</h1>
+            <p>纯前端Canvas智能去水印，支持批量处理打包下载</p>
+        </header>
+
+        <div class="main-grid">
+            <aside class="sidebar">
+                <div class="panel">
+                    <div class="panel-title">图片上传</div>
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-text">
+                            <strong>点击上传</strong> 或拖拽图片到此处<br>
+                            支持 JPG、PNG 格式
+                        </div>
+                    </div>
+                    <input type="file" class="file-input" id="fileInput" multiple accept=".jpg,.jpeg,.png">
+                    <div class="file-list" id="fileList"></div>
+                    <div class="file-stats" id="fileStats">已选择 0 张图片</div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">去水印设置</div>
+                    <div class="control-group">
+                        <label class="control-label">修复半径</label>
+                        <div class="control-row">
+                            <input type="range" class="slider" id="radiusSlider" min="3" max="20" value="8">
+                            <span class="slider-value" id="radiusValue">8</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label">融合强度</label>
+                        <div class="control-row">
+                            <input type="range" class="slider" id="blurSlider" min="2" max="10" value="5">
+                            <span class="slider-value" id="blurValue">5</span>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-warning" id="applyCurrentBtn">📍 应用到当前图片</button>
+                        <button class="btn btn-primary" id="applyAllBtn">⚡ 批量应用选区</button>
+                    </div>
+                    <div class="hint-box">
+                        <strong>使用技巧：</strong><br>
+                        1. 拖拽蓝色框精确圈选整个水印区域<br>
+                        2. 选区可以比水印稍大一圈，效果更好<br>
+                        3. 修复半径和融合强度调得越大，修复越自然
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">下载选项</div>
+                    <div class="btn-group">
+                        <button class="btn btn-success" id="downloadSingleBtn" disabled>💾 下载当前图片</button>
+                        <button class="btn btn-success" id="downloadZipBtn" disabled>📦 打包下载ZIP</button>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="canvas-container">
+                <div class="toolbar">
+                    <div class="toolbar-left">
+                        <span>当前图片：</span>
+                        <span class="current-image-name" id="currentImageName">未选择</span>
+                    </div>
+                    <div class="toolbar-right">
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" id="zoomOut">-</button>
+                            <span class="zoom-level" id="zoomLevel">100%</span>
+                            <button class="zoom-btn" id="zoomIn">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="canvas-wrapper" id="canvasWrapper">
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-state-icon">🖼️</div>
+                        <p>请上传图片开始处理</p>
+                    </div>
+                    <canvas id="mainCanvas" class="image-canvas hidden"></canvas>
+                    <div class="selection-box hidden" id="selectionBox">
+                        <div class="resize-handle nw" data-handle="nw"></div>
+                        <div class="resize-handle ne" data-handle="ne"></div>
+                        <div class="resize-handle sw" data-handle="sw"></div>
+                        <div class="resize-handle se" data-handle="se"></div>
+                    </div>
+                </div>
+
+                <div class="processing-overlay hidden" id="processingOverlay">
+                    <div class="spinner"></div>
+                    <div class="processing-text" id="processingText">正在处理...</div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="jszip.min.js"></script>
+    <script>
+    // ============================================
+    // 模块一：UI操作模块 - 处理用户界面交互
+    // ============================================
+    const UIModule = {
+        elements: {},
+        
+        /**
+         * 初始化UI元素引用
+         */
+        initElements: function() {
+            this.elements = {
+                uploadArea: document.getElementById('uploadArea'),
+                fileInput: document.getElementById('fileInput'),
+                fileList: document.getElementById('fileList'),
+                fileStats: document.getElementById('fileStats'),
+                canvasWrapper: document.getElementById('canvasWrapper'),
+                mainCanvas: document.getElementById('mainCanvas'),
+                selectionBox: document.getElementById('selectionBox'),
+                emptyState: document.getElementById('emptyState'),
+                currentImageName: document.getElementById('currentImageName'),
+                zoomLevel: document.getElementById('zoomLevel'),
+                zoomIn: document.getElementById('zoomIn'),
+                zoomOut: document.getElementById('zoomOut'),
+                radiusSlider: document.getElementById('radiusSlider'),
+                radiusValue: document.getElementById('radiusValue'),
+                blurSlider: document.getElementById('blurSlider'),
+                blurValue: document.getElementById('blurValue'),
+                applyCurrentBtn: document.getElementById('applyCurrentBtn'),
+                applyAllBtn: document.getElementById('applyAllBtn'),
+                downloadSingleBtn: document.getElementById('downloadSingleBtn'),
+                downloadZipBtn: document.getElementById('downloadZipBtn'),
+                processingOverlay: document.getElementById('processingOverlay'),
+                processingText: document.getElementById('processingText')
+            };
+        },
+
+        /**
+         * 更新文件列表显示
+         * @param {Array} files - 文件数据数组
+         * @param {number} activeIndex - 当前激活的文件索引
+         */
+        updateFileList: function(files, activeIndex) {
+            this.elements.fileList.innerHTML = '';
+            files.forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = `file-item ${index === activeIndex ? 'active' : ''}`;
+                item.innerHTML = `
+                    <span class="file-item-name">${file.name}</span>
+                    <button class="file-item-remove" data-index="${index}">×</button>
+                `;
+                item.addEventListener('click', (e) => {
+                    if (!e.target.classList.contains('file-item-remove')) {
+                        ImageModule.setActiveImage(index);
+                    }
+                });
+                item.querySelector('.file-item-remove').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    ImageModule.removeImage(index);
+                });
+                this.elements.fileList.appendChild(item);
+            });
+            this.elements.fileStats.textContent = `已选择 ${files.length} 张图片`;
+        },
+
+        /**
+         * 显示/隐藏处理遮罩
+         * @param {boolean} show - 是否显示
+         * @param {string} text - 处理文字
+         */
+        toggleProcessing: function(show, text = '正在处理...') {
+            this.elements.processingText.textContent = text;
+            this.elements.processingOverlay.classList.toggle('hidden', !show);
+        },
+
+        /**
+         * 更新下载按钮状态
+         * @param {boolean} hasImages - 是否有处理过的图片
+         */
+        updateDownloadButtons: function(hasImages) {
+            this.elements.downloadSingleBtn.disabled = !hasImages;
+            this.elements.downloadZipBtn.disabled = !hasImages;
+        }
+    };
+
+    // ============================================
+    // 模块二：图像处理模块 - Canvas渲染和去水印算法
+    // ============================================
+    const ImageModule = {
+        images: [],
+        activeImageIndex: -1,
+        canvas: null,
+        ctx: null,
+        scale: 1,
+        selection: {
+            x: 50,
+            y: 50,
+            width: 100,
+            height: 100,
+            isDragging: false,
+            isResizing: false,
+            resizeHandle: null,
+            startX: 0,
+            startY: 0,
+            startSelX: 0,
+            startSelY: 0,
+            startSelW: 0,
+            startSelH: 0
+        },
+
+        /**
+         * 初始化图像处理模块
+         */
+        init: function() {
+            this.canvas = UIModule.elements.mainCanvas;
+            this.ctx = this.canvas.getContext('2d');
+            this.setupSelectionEvents();
+            this.setupSliderEvents();
+            this.setupZoomEvents();
+        },
+
+        /**
+         * 设置选区拖拽和缩放事件
+         */
+        setupSelectionEvents: function() {
+            const box = UIModule.elements.selectionBox;
+
+            box.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                const handle = e.target.dataset.handle;
+                this.selection.isDragging = !handle;
+                this.selection.isResizing = !!handle;
+                this.selection.resizeHandle = handle;
+                this.selection.startX = e.clientX;
+                this.selection.startY = e.clientY;
+                this.selection.startSelX = this.selection.x;
+                this.selection.startSelY = this.selection.y;
+                this.selection.startSelW = this.selection.width;
+                this.selection.startSelH = this.selection.height;
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!this.selection.isDragging && !this.selection.isResizing) return;
+                
+                const dx = e.clientX - this.selection.startX;
+                const dy = e.clientY - this.selection.startY;
+
+                if (this.selection.isDragging) {
+                    this.selection.x = Math.max(0, this.selection.startSelX + dx);
+                    this.selection.y = Math.max(0, this.selection.startSelY + dy);
+                } else if (this.selection.isResizing) {
+                    const handle = this.selection.resizeHandle;
+                    if (handle.includes('e')) {
+                        this.selection.width = Math.max(20, this.selection.startSelW + dx);
+                    }
+                    if (handle.includes('w')) {
+                        this.selection.x = Math.max(0, this.selection.startSelX + dx);
+                        this.selection.width = Math.max(20, this.selection.startSelW - dx);
+                    }
+                    if (handle.includes('s')) {
+                        this.selection.height = Math.max(20, this.selection.startSelH + dy);
+                    }
+                    if (handle.includes('n')) {
+                        this.selection.y = Math.max(0, this.selection.startSelY + dy);
+                        this.selection.height = Math.max(20, this.selection.startSelH - dy);
+                    }
+                }
+                this.updateSelectionPosition();
+            });
+
+            document.addEventListener('mouseup', () => {
+                this.selection.isDragging = false;
+                this.selection.isResizing = false;
+            });
+        },
+
+        /**
+         * 设置滑块事件
+         */
+        setupSliderEvents: function() {
+            UIModule.elements.radiusSlider.addEventListener('input', (e) => {
+                UIModule.elements.radiusValue.textContent = e.target.value;
+            });
+            UIModule.elements.blurSlider.addEventListener('input', (e) => {
+                UIModule.elements.blurValue.textContent = e.target.value;
+            });
+        },
+
+        /**
+         * 设置缩放事件
+         */
+        setupZoomEvents: function() {
+            UIModule.elements.zoomIn.addEventListener('click', () => {
+                this.scale = Math.min(3, this.scale + 0.1);
+                this.updateZoom();
+            });
+            UIModule.elements.zoomOut.addEventListener('click', () => {
+                this.scale = Math.max(0.3, this.scale - 0.1);
+                this.updateZoom();
+            });
+        },
+
+        /**
+         * 更新缩放显示
+         */
+        updateZoom: function() {
+            UIModule.elements.zoomLevel.textContent = Math.round(this.scale * 100) + '%';
+            this.canvas.style.transform = `scale(${this.scale})`;
+        },
+
+        /**
+         * 更新选区位置
+         */
+        updateSelectionPosition: function() {
+            const box = UIModule.elements.selectionBox;
+            box.style.left = (this.canvas.offsetLeft + this.selection.x) + 'px';
+            box.style.top = (this.canvas.offsetTop + this.selection.y) + 'px';
+            box.style.width = this.selection.width + 'px';
+            box.style.height = this.selection.height + 'px';
+        },
+
+        /**
+         * 添加图片到处理队列
+         * @param {File} file - 图片文件
+         */
+        addImage: function(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.images.push({
+                            name: file.name,
+                            original: img,
+                            processed: null,
+                            dataUrl: null
+                        });
+                        if (this.images.length === 1) {
+                            this.setActiveImage(0);
+                        }
+                        UIModule.updateFileList(this.images, this.activeImageIndex);
+                        resolve();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        },
+
+        /**
+         * 设置当前活动图片
+         * @param {number} index - 图片索引
+         */
+        setActiveImage: function(index) {
+            if (index < 0 || index >= this.images.length) return;
+            
+            this.activeImageIndex = index;
+            const img = this.images[index];
+            const sourceImg = img.processed || img.original;
+            
+            this.canvas.width = sourceImg.width;
+            this.canvas.height = sourceImg.height;
+            this.ctx.drawImage(sourceImg, 0, 0);
+            
+            this.canvas.classList.remove('hidden');
+            UIModule.elements.emptyState.classList.add('hidden');
+            UIModule.elements.selectionBox.classList.remove('hidden');
+            UIModule.elements.currentImageName.textContent = img.name;
+            
+            this.selection.x = 50;
+            this.selection.y = 50;
+            this.selection.width = Math.min(150, this.canvas.width - 50);
+            this.selection.height = Math.min(80, this.canvas.height - 50);
+            
+            setTimeout(() => this.updateSelectionPosition(), 100);
+            UIModule.updateFileList(this.images, this.activeImageIndex);
+            UIModule.updateDownloadButtons(this.images.some(i => i.processed));
+        },
+
+        /**
+         * 移除指定索引的图片
+         * @param {number} index - 图片索引
+         */
+        removeImage: function(index) {
+            this.images.splice(index, 1);
+            if (this.images.length === 0) {
+                this.activeImageIndex = -1;
+                this.canvas.classList.add('hidden');
+                UIModule.elements.emptyState.classList.remove('hidden');
+                UIModule.elements.selectionBox.classList.add('hidden');
+                UIModule.elements.currentImageName.textContent = '未选择';
+            } else if (index <= this.activeImageIndex) {
+                this.setActiveImage(Math.max(0, this.activeImageIndex - 1));
+            }
+            UIModule.updateFileList(this.images, this.activeImageIndex);
+            UIModule.updateDownloadButtons(this.images.some(i => i.processed));
+        },
+
+        /**
+         * 应用去水印到当前图片
+         */
+        applyWatermarkRemoval: function() {
+            if (this.activeImageIndex < 0) return;
+            
+            const img = this.images[this.activeImageIndex];
+            const radius = parseInt(UIModule.elements.radiusSlider.value);
+            const blurLevel = parseInt(UIModule.elements.blurSlider.value);
+            
+            const rect = this.canvas.getBoundingClientRect();
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            
+            const selX = Math.max(0, Math.floor(this.selection.x * scaleX));
+            const selY = Math.max(0, Math.floor(this.selection.y * scaleY));
+            const selW = Math.min(this.canvas.width - selX, Math.floor(this.selection.width * scaleX));
+            const selH = Math.min(this.canvas.height - selY, Math.floor(this.selection.height * scaleY));
+            
+            this.inpaintAdvanced(selX, selY, selW, selH, radius, blurLevel);
+            
+            img.processed = document.createElement('canvas');
+            img.processed.width = this.canvas.width;
+            img.processed.height = this.canvas.height;
+            const pCtx = img.processed.getContext('2d');
+            pCtx.drawImage(this.canvas, 0, 0);
+            img.dataUrl = this.canvas.toDataURL('image/png');
+            
+            UIModule.updateDownloadButtons(true);
+        },
+
+        /**
+         * 批量应用去水印
+         */
+        applyWatermarkRemovalAll: async function() {
+            if (this.images.length === 0) return;
+            
+            UIModule.toggleProcessing(true, '正在批量处理...');
+            
+            for (let i = 0; i < this.images.length; i++) {
+                this.setActiveImage(i);
+                await new Promise(r => setTimeout(r, 50));
+                this.applyWatermarkRemoval();
+            }
+            
+            UIModule.toggleProcessing(false);
+        },
+
+        /**
+         * 高级图像修复算法（改进的Telea快速行进法）
+         * @param {number} x - 选区X坐标
+         * @param {number} y - 选区Y坐标
+         * @param {number} w - 选区宽度
+         * @param {number} h - 选区高度
+         * @param {number} radius - 修复半径
+         * @param {number} blurLevel - 模糊级别
+         */
+        inpaintAdvanced: function(x, y, w, h, radius, blurLevel) {
+            const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+            const data = imageData.data;
+            const width = this.canvas.width;
+            const height = this.canvas.height;
+            
+            const mask = new Uint8Array(width * height);
+            const endX = Math.min(width - 1, x + w);
+            const endY = Math.min(height - 1, y + h);
+            
+            for (let py = y; py < endY; py++) {
+                for (let px = x; px < endX; px++) {
+                    mask[py * width + px] = 1;
+                }
+            }
+            
+            const sampleRadius = Math.max(radius, 5);
+            
+            for (let iteration = 0; iteration < 4; iteration++) {
+                const temp = new Uint8ClampedArray(data);
+                
+                for (let py = y; py < endY; py++) {
+                    for (let px = x; px < endX; px++) {
+                        let r = 0, g = 0, b = 0, count = 0;
+                        
+                        for (let dy = -sampleRadius; dy <= sampleRadius; dy++) {
+                            for (let dx = -sampleRadius; dx <= sampleRadius; dx++) {
+                                const nx = px + dx;
+                                const ny = py + dy;
+                                
+                                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                    const dist = Math.sqrt(dx * dx + dy * dy);
+                                    
+                                    if (dist <= sampleRadius && mask[ny * width + nx] === 0) {
+                                        const weight = Math.exp(-dist * dist / (sampleRadius * 0.5));
+                                        const idx = (ny * width + nx) * 4;
+                                        r += temp[idx] * weight;
+                                        g += temp[idx + 1] * weight;
+                                        b += temp[idx + 2] * weight;
+                                        count += weight;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (count > 0) {
+                            const idx = (py * width + px) * 4;
+                            data[idx] = r / count;
+                            data[idx + 1] = g / count;
+                            data[idx + 2] = b / count;
+                        }
+                    }
+                }
+            }
+            
+            this.poissonBlend(data, width, height, x, y, w, h, blurLevel);
+            
+            this.ctx.putImageData(imageData, 0, 0);
+        },
+
+        /**
+         * 泊松边缘融合处理
+         * @param {Uint8ClampedArray} data - 图像数据
+         * @param {number} width - 图像宽度
+         * @param {number} height - 图像高度
+         * @param {number} x - 选区X坐标
+         * @param {number} y - 选区Y坐标
+         * @param {number} w - 选区宽度
+         * @param {number} h - 选区高度
+         * @param {number} level - 融合级别
+         */
+        poissonBlend: function(data, width, height, x, y, w, h, level) {
+            const largeKernel = [
+                [1, 4, 7, 4, 1],
+                [4, 16, 26, 16, 4],
+                [7, 26, 41, 26, 7],
+                [4, 16, 26, 16, 4],
+                [1, 4, 7, 4, 1]
+            ];
+            const kernelSum = 273;
+            const temp = new Uint8ClampedArray(data.length);
+            
+            const endX = Math.min(width - 1, x + w);
+            const endY = Math.min(height - 1, y + h);
+            const blendLevel = level + 2;
+            
+            for (let pass = 0; pass < blendLevel; pass++) {
+                temp.set(data);
+                for (let py = y; py < endY; py++) {
+                    for (let px = x; px < endX; px++) {
+                        let r = 0, g = 0, b = 0, totalWeight = 0;
+                        
+                        for (let ky = -2; ky <= 2; ky++) {
+                            for (let kx = -2; kx <= 2; kx++) {
+                                const nx = Math.max(0, Math.min(width - 1, px + kx));
+                                const ny = Math.max(0, Math.min(height - 1, py + ky));
+                                const distToEdge = Math.min(
+                                    px - x, endX - px, py - y, endY - py
+                                );
+                                const edgeWeight = distToEdge < 3 ? 1.5 : 1;
+                                const weight = largeKernel[ky + 2][kx + 2] * edgeWeight;
+                                const idx = (ny * width + nx) * 4;
+                                r += temp[idx] * weight;
+                                g += temp[idx + 1] * weight;
+                                b += temp[idx + 2] * weight;
+                                totalWeight += weight;
+                            }
+                        }
+                        
+                        const idx = (py * width + px) * 4;
+                        data[idx] = Math.min(255, Math.round(r / totalWeight));
+                        data[idx + 1] = Math.min(255, Math.round(g / totalWeight));
+                        data[idx + 2] = Math.min(255, Math.round(b / totalWeight));
+                    }
+                }
+            }
+        }
+    };
+
+    // ============================================
+    // 模块三：文件下载模块 - JSZip打包下载功能
+    // ============================================
+    const DownloadModule = {
+        /**
+         * 下载当前处理后的图片
+         */
+        downloadSingle: function() {
+            if (ImageModule.activeImageIndex < 0) return;
+            
+            const img = ImageModule.images[ImageModule.activeImageIndex];
+            if (!img.processed) return;
+            
+            const link = document.createElement('a');
+            link.download = 'processed_' + img.name.replace(/\.[^/.]+$/, '.png');
+            link.href = img.dataUrl;
+            link.click();
+        },
+
+        /**
+         * 打包下载所有处理后的图片为ZIP
+         */
+        downloadZip: async function() {
+            const processedImages = ImageModule.images.filter(img => img.processed);
+            if (processedImages.length === 0) return;
+            
+            UIModule.toggleProcessing(true, '正在生成ZIP文件...');
+            
+            const zip = new JSZip();
+            
+            processedImages.forEach((img) => {
+                const base64Data = img.dataUrl.split(',')[1];
+                const fileName = 'processed_' + img.name.replace(/\.[^/.]+$/, '.png');
+                zip.file(fileName, base64Data, { base64: true });
+            });
+            
+            const content = await zip.generateAsync({ type: 'blob' });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = 'processed_images.zip';
+            link.click();
+            
+            URL.revokeObjectURL(link.href);
+            UIModule.toggleProcessing(false);
+        }
+    };
+
+    // ============================================
+    // 主程序入口
+    // ============================================
+    (function main() {
+        UIModule.initElements();
+        ImageModule.init();
+
+        // 文件上传事件
+        UIModule.elements.uploadArea.addEventListener('click', () => {
+            UIModule.elements.fileInput.click();
+        });
+
+        UIModule.elements.fileInput.addEventListener('change', async (e) => {
+            UIModule.toggleProcessing(true, '正在加载图片...');
+            const files = Array.from(e.target.files).filter(f => 
+                f.type === 'image/jpeg' || f.type === 'image/png'
+            );
+            for (const file of files) {
+                await ImageModule.addImage(file);
+            }
+            UIModule.toggleProcessing(false);
+            e.target.value = '';
+        });
+
+        // 拖拽上传事件
+        UIModule.elements.uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            UIModule.elements.uploadArea.classList.add('dragover');
+        });
+
+        UIModule.elements.uploadArea.addEventListener('dragleave', () => {
+            UIModule.elements.uploadArea.classList.remove('dragover');
+        });
+
+        UIModule.elements.uploadArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            UIModule.elements.uploadArea.classList.remove('dragover');
+            UIModule.toggleProcessing(true, '正在加载图片...');
+            
+            const files = Array.from(e.dataTransfer.files).filter(f => 
+                f.type === 'image/jpeg' || f.type === 'image/png'
+            );
+            for (const file of files) {
+                await ImageModule.addImage(file);
+            }
+            UIModule.toggleProcessing(false);
+        });
+
+        // 按钮事件绑定
+        UIModule.elements.applyCurrentBtn.addEventListener('click', () => {
+            ImageModule.applyWatermarkRemoval();
+        });
+
+        UIModule.elements.applyAllBtn.addEventListener('click', () => {
+            ImageModule.applyWatermarkRemovalAll();
+        });
+
+        UIModule.elements.downloadSingleBtn.addEventListener('click', () => {
+            DownloadModule.downloadSingle();
+        });
+
+        UIModule.elements.downloadZipBtn.addEventListener('click', () => {
+            DownloadModule.downloadZip();
+        });
+    })();
+    </script>
+</body>
+</html>
