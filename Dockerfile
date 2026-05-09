@@ -2,10 +2,10 @@ FROM docker.m.daocloud.io/node:18
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY wm-js-tool/package*.json ./
 RUN npm install
 
-COPY . .
+COPY wm-js-tool/ ./
 
 RUN npm run build
 
